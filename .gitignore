@@ -1,0 +1,7 @@
+# Salida de PyInstaller (se regenera con: pyinstaller --noconfirm HerramientasDigixonic.spec)
+build/
+dist/
+
+# Python
+__pycache__/
+*.pyc
