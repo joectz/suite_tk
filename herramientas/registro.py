@@ -16,6 +16,8 @@ from __future__ import annotations
 from . import base
 from .mapeador_urls import motor as _mapeador_motor
 from .mapeador_urls import pagina as _mapeador_pagina  # noqa: F401  (el import registra la @ui.page)
+from .descargador_multimedia import motor as _descargador_motor
+from .descargador_multimedia import pagina as _descargador_pagina  # noqa: F401
 
 REGISTRO: list[base.Herramienta] = [
     base.Herramienta(
@@ -26,6 +28,15 @@ REGISTRO: list[base.Herramienta] = [
         icono="travel_explore",
         ruta=_mapeador_pagina.RUTA,
         worker_main=_mapeador_motor.main,
+    ),
+    base.Herramienta(
+        id=_descargador_pagina.ID_HERRAMIENTA,
+        nombre="Descargador Multimedia",
+        descripcion="Extrae y descarga imágenes, videos, audio y recursos "
+                    "multimedia de páginas web.",
+        icono="download",
+        ruta=_descargador_pagina.RUTA,
+        worker_main=_descargador_motor.main,
     ),
 ]
 
