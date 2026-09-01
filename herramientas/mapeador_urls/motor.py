@@ -77,6 +77,13 @@ def normalizar(url: str, ignorar_query: bool = False) -> str:
     # Se descarta siempre el fragmento (#...): no es una pagina distinta
     return urlunparse((esquema, netloc, ruta, p.params, query, ""))
 
+#se agrego nivel por ruta apara evr los niveles de acuerdo a las rutas no al nuemro de clicks
+def nivel_por_ruta(url: str) -> int:
+ 
+    ruta = urlparse(url).path
+    segmentos = [s for s in ruta.split("/") if s]
+    return len(segmentos)
+
 
 # --------------------------------------------------------------------------- #
 # Spider
@@ -200,11 +207,12 @@ class TodasLasPaginasSpider(scrapy.Spider):
         tipo = response.headers.get("Content-Type", b"").decode("utf-8", "ignore")
         es_html = isinstance(response, HtmlResponse)
 
+        url_norm = normalizar(response.url, self.ignorar_query)
         item = {
-            "url": normalizar(response.url, self.ignorar_query),
+            "url": url_norm,
             "status": response.status,
             "titulo": "",
-            "profundidad": response.meta.get("depth", 0),
+            "profundidad": nivel_por_ruta(url_norm),
             "origen": response.request.headers.get("Referer", b"").decode("utf-8", "ignore"),
             "content_type": tipo.split(";")[0].strip(),
         }
@@ -251,11 +259,12 @@ class TodasLasPaginasSpider(scrapy.Spider):
             motivo = failure.value.__class__.__name__
 
         self.logger.warning(f"Fallo: {request.url} -> {motivo}")
+        url_norm = normalizar(request.url, self.ignorar_query)
         yield {
-            "url": normalizar(request.url, self.ignorar_query),
+            "url": url_norm,
             "status": estado,
             "titulo": f"(error: {motivo})",
-            "profundidad": request.meta.get("depth", 0),
+            "profundidad": nivel_por_ruta(url_norm),
             "origen": request.headers.get("Referer", b"").decode("utf-8", "ignore"),
             "content_type": "",
         }

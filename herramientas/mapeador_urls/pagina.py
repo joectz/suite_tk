@@ -119,8 +119,12 @@ def index():
             with ui.row().classes("w-full items-center gap-6 flex-wrap"):
                 lbl_estado = ui.label("Listo").classes("text-lg font-medium")
                 ui.space()
-                lbl_paginas = ui.label("0 páginas").classes("text-sm")
-                lbl_errores = ui.label("0 errores").classes("text-sm text-red-600")
+                lbl_paginas = ui.label("0 páginas").classes(
+                    "text-sm cursor-pointer select-none hover:underline")
+                lbl_paginas.tooltip("Click para ver solo páginas OK (200)")
+                lbl_errores = ui.label("0 errores").classes(
+                    "text-sm text-red-600 cursor-pointer select-none hover:underline")
+                lbl_errores.tooltip("Click para ver solo errores")
                 lbl_tiempo = ui.label("0s").classes("text-sm text-gray-500")
             barra = ui.linear_progress(value=0, show_value=False).props("indeterminate=false")
             barra.set_visibility(False)
@@ -160,6 +164,19 @@ def index():
                 </q-td>
             """)
 
+            # URL clickeable: abre la pagina real en una pestaña nueva.
+            # @click.stop evita que el clic tambien dispare la seleccion de
+            # fila (row-click) de la tabla.
+            tabla.add_slot("body-cell-url", r"""
+                <q-td :props="props">
+                    <a :href="props.value" target="_blank" rel="noopener noreferrer"
+                       @click.stop
+                       class="text-blue-600 hover:underline break-all">
+                        {{ props.value }}
+                    </a>
+                </q-td>
+            """)
+
         # ---- Log ------------------------------------------------------------ #
         with ui.expansion("Registro técnico", icon="terminal").classes("w-full"):
             log_area = ui.log(max_lines=300).classes("w-full h-48 font-mono text-xs")
@@ -168,15 +185,51 @@ def index():
     # Logica (cierra sobre los widgets de esta pagina)
     # ----------------------------------------------------------------------- #
 
+    # "todas" | "ok" (solo status 200) | "error" (status != 200)
+    filtro_tipo = {"valor": "todas"}
+
+    _CLASES_PAGINAS_BASE = "text-sm cursor-pointer select-none hover:underline"
+    _CLASES_ERRORES_BASE = "text-sm text-red-600 cursor-pointer select-none hover:underline"
+
+    def actualizar_estilos_filtro():
+        """Resalta (negrita + fondo) el contador cuyo filtro esta activo."""
+        lbl_paginas.classes(replace=_CLASES_PAGINAS_BASE + (
+            " font-bold bg-blue-50 px-2 py-1 rounded"
+            if filtro_tipo["valor"] == "ok" else ""))
+        lbl_errores.classes(replace=_CLASES_ERRORES_BASE + (
+            " font-bold bg-red-50 px-2 py-1 rounded"
+            if filtro_tipo["valor"] == "error" else ""))
+
     def refrescar_tabla():
-        """Aplica el filtro de texto y vuelca las filas en la tabla."""
+        """Aplica el filtro de estado (ok/error) y el de texto, y vuelca las filas."""
+        filas = E.filas
+        if filtro_tipo["valor"] == "ok":
+            filas = [f for f in filas if f["status"] == 200]
+        elif filtro_tipo["valor"] == "error":
+            filas = [f for f in filas if f["status"] != 200]
+
         texto = (filtro.value or "").lower().strip()
         if texto:
-            tabla.rows = [f for f in E.filas
-                          if texto in f["url"].lower() or texto in f["titulo"].lower()]
-        else:
-            tabla.rows = list(E.filas)
+            filas = [f for f in filas
+                     if texto in f["url"].lower() or texto in f["titulo"].lower()]
+
+        tabla.rows = filas
         tabla.update()
+
+    def alternar_filtro_paginas():
+        """Click en '<N> páginas': muestra solo status 200. Click de nuevo: quita el filtro."""
+        filtro_tipo["valor"] = "todas" if filtro_tipo["valor"] == "ok" else "ok"
+        actualizar_estilos_filtro()
+        refrescar_tabla()
+
+    def alternar_filtro_errores():
+        """Click en '<N> errores': muestra solo status != 200. Click de nuevo: quita el filtro."""
+        filtro_tipo["valor"] = "todas" if filtro_tipo["valor"] == "error" else "error"
+        actualizar_estilos_filtro()
+        refrescar_tabla()
+
+    lbl_paginas.on("click", alternar_filtro_paginas)
+    lbl_errores.on("click", alternar_filtro_errores)
 
     filtro.on_value_change(lambda _: refrescar_tabla())
 
@@ -240,6 +293,8 @@ def index():
         # Reset
         E.filas.clear()
         E.vistas.clear()
+        filtro_tipo["valor"] = "todas"
+        actualizar_estilos_filtro()
         tabla.rows = []
         tabla.update()
         log_area.clear()
