@@ -18,6 +18,8 @@ from .mapeador_urls import motor as _mapeador_motor
 from .mapeador_urls import pagina as _mapeador_pagina  # noqa: F401  (el import registra la @ui.page)
 from .descargador_multimedia import motor as _descargador_motor
 from .descargador_multimedia import pagina as _descargador_pagina  # noqa: F401
+from .sitemap import motor as _sitemap_motor
+from .sitemap import pagina as _sitemap_pagina  # noqa: F401
 
 REGISTRO: list[base.Herramienta] = [
     base.Herramienta(
@@ -37,6 +39,15 @@ REGISTRO: list[base.Herramienta] = [
         icono="download",
         ruta=_descargador_pagina.RUTA,
         worker_main=_descargador_motor.main,
+    ),
+    base.Herramienta(
+        id=_sitemap_pagina.ID_HERRAMIENTA,
+        nombre="Generador de Sitemap",
+        descripcion="Genera un sitemap.xml SEO-ready a partir de "
+                    "sitios mapeados previamente",
+        icono="map",
+        ruta=_sitemap_pagina.RUTA,
+        worker_main=_sitemap_motor.main,
     ),
 ]
 
