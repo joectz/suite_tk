@@ -15,7 +15,9 @@ from __future__ import annotations
 
 from . import base
 from .mapeador_urls import motor as _mapeador_motor
-from .mapeador_urls import pagina as _mapeador_pagina  # noqa: F401  (el import registra la @ui.page)
+from .mapeador_urls import pagina as _mapeador_pagina 
+from .scaner_dominios_url import pagina as _scaner_dominios_pagina
+from .scaner_dominios_url import motor as _scaner_dominios_motor    # noqa: F401  (el import registra la @ui.page)
 
 REGISTRO: list[base.Herramienta] = [
     base.Herramienta(
@@ -27,6 +29,14 @@ REGISTRO: list[base.Herramienta] = [
         ruta=_mapeador_pagina.RUTA,
         worker_main=_mapeador_motor.main,
     ),
+    base.Herramienta(
+        id=_scaner_dominios_pagina.ID_HERRAMIENTA,
+        nombre="Scaner de Dominios",
+        descripcion="Consulta WHOIS/RDAP de uno o varios dominios",
+        icono="domain",
+        ruta=_scaner_dominios_pagina.RUTA,
+        worker_main=_scaner_dominios_motor.main,
+    )
 ]
 
 
