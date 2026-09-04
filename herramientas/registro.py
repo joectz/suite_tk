@@ -20,6 +20,8 @@ from .descargador_multimedia import motor as _descargador_motor
 from .descargador_multimedia import pagina as _descargador_pagina  # noqa: F401
 from .sitemap import motor as _sitemap_motor
 from .sitemap import pagina as _sitemap_pagina  # noqa: F401
+from .color_tools import motor as _color_motor
+from .color_tools import pagina as _color_pagina  # noqa: F401
 
 REGISTRO: list[base.Herramienta] = [
     base.Herramienta(
@@ -48,6 +50,15 @@ REGISTRO: list[base.Herramienta] = [
         icono="map",
         ruta=_sitemap_pagina.RUTA,
         worker_main=_sitemap_motor.main,
+    ),
+    base.Herramienta(
+        id=_color_pagina.ID_HERRAMIENTA,
+        nombre="Color Tools",
+        descripcion="Extractor de temas desde scraping, escalas multiformato "
+                    "y armonías de color.",
+        icono="palette",
+        ruta=_color_pagina.RUTA,
+        worker_main=_color_motor.main,
     ),
 ]
 
