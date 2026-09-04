@@ -25,7 +25,8 @@ datas = []
 binaries = []
 hiddenimports = []
 
-for paquete in ('scrapy', 'twisted', 'nicegui', 'pywebview'):
+for paquete in ('scrapy', 'twisted', 'nicegui', 'pywebview',
+                'pymupdf', 'docx', 'yaml'):
     d, b, h = collect_all(paquete)
     datas += d
     binaries += b
@@ -36,6 +37,8 @@ for paquete in (
     'cryptography', 'Scrapy', 'itemadapter', 'itemloaders', 'queuelib',
     'protego', 'PyDispatcher', 'zope.interface', 'service-identity',
     'tldextract', 'packaging', 'defusedxml', 'Brotli', 'nicegui',
+    # Herramienta 'Tours a Markdown'.
+    'pymupdf', 'python-docx', 'PyYAML',
 ):
     datas += copy_metadata(paquete)
 

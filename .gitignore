@@ -5,3 +5,7 @@ dist/
 # Python
 __pycache__/
 *.pyc
+
+# Perfil de la herramienta "Tours a Markdown": son ajustes locales de quien
+# la usa, no configuracion del proyecto.
+.tourkit-perfil.json

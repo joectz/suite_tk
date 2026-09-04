@@ -16,6 +16,7 @@ from __future__ import annotations
 from . import base
 from .mapeador_urls import motor as _mapeador_motor
 from .mapeador_urls import pagina as _mapeador_pagina  # noqa: F401  (el import registra la @ui.page)
+from .tourkit_md import pagina as _tourkit_pagina  # noqa: F401  (idem)
 
 REGISTRO: list[base.Herramienta] = [
     base.Herramienta(
@@ -26,6 +27,15 @@ REGISTRO: list[base.Herramienta] = [
         icono="travel_explore",
         ruta=_mapeador_pagina.RUTA,
         worker_main=_mapeador_motor.main,
+    ),
+    # Sin worker: leer un PDF cuesta milisegundos, no hace falta subproceso.
+    base.Herramienta(
+        id=_tourkit_pagina.ID_HERRAMIENTA,
+        nombre="Tours a Markdown",
+        descripcion="Convierte PDF o DOCX de tours al formato de importación "
+                    "de TourKit, enlazando cada tour con su traducción",
+        icono="translate",
+        ruta=_tourkit_pagina.RUTA,
     ),
 ]
 
