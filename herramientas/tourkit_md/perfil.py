@@ -64,8 +64,15 @@ def cargar(ruta: Path | None = None) -> dict[str, Any]:
     for clave, valor in guardado.items():
         if clave == "por_idioma" and isinstance(valor, dict):
             for idioma, campos in valor.items():
-                perfil["por_idioma"].setdefault(idioma, {}).update(campos or {})
-        else:
+                destino = perfil["por_idioma"].setdefault(idioma, {})
+                for campo, contenido in (campos or {}).items():
+                    if contenido is not None:
+                        destino[campo] = contenido
+        elif valor is not None:
+            # Un null en el archivo se ignora y gana el valor por defecto. Sin
+            # esto, un perfil guardado a medias (por ejemplo con los campos
+            # numericos vacios) dejaba group_min en None y acababa escrito como
+            # la cadena "None" en el Markdown.
             perfil[clave] = valor
     return perfil
 

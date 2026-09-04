@@ -20,6 +20,7 @@ Arquitectura:
 from __future__ import annotations
 
 import tempfile
+from copy import deepcopy
 from pathlib import Path
 
 from nicegui import ui
@@ -42,6 +43,26 @@ def index():
     perfil = modulo_perfil.cargar()
     subidos: dict[str, Path] = {}       # "base" | "traduccion" -> archivo en disco
     resultado: dict[str, Resultado] = {}  # caja mutable para el ultimo resultado
+
+    # Los ajustes se actualizan cuando el usuario TOCA un control, no leyendo
+    # todos los widgets al guardar. El panel "Valores por defecto" es un
+    # ui.expansion y su contenido no se renderiza hasta que se despliega: al
+    # leerlo cerrado, los campos devolvian None o "" y machacaban el perfil con
+    # valores vacios, que ademas se releian en el siguiente arranque. Un control
+    # que nadie toca ya no puede pisar nada.
+    ajustes: dict = deepcopy(perfil)
+
+    def _fijar(clave: str, valor) -> None:
+        if valor is not None:
+            ajustes[clave] = valor
+
+    def _fijar_entero(clave: str, valor) -> None:
+        if valor not in (None, ""):
+            ajustes[clave] = int(valor)
+
+    def _fijar_idioma(codigo: str, campo: str, valor) -> None:
+        if valor is not None:
+            ajustes.setdefault("por_idioma", {}).setdefault(codigo, {})[campo] = valor
 
     with ui.column().classes("w-full max-w-6xl mx-auto p-4 gap-4"):
 
@@ -119,45 +140,46 @@ def index():
                          "tours. Se guardan para la próxima vez.").classes(
                     "text-xs text-gray-500 mb-2")
 
-                campos_perfil: dict[str, object] = {}
                 with ui.row().classes("w-full gap-3 flex-wrap"):
-                    campos_perfil["group_min"] = ui.number(
-                        "Grupo mín.", value=perfil["group_min"], format="%d"
-                    ).props("outlined dense").classes("w-32")
-                    campos_perfil["group_max"] = ui.number(
-                        "Grupo máx.", value=perfil["group_max"], format="%d"
-                    ).props("outlined dense").classes("w-32")
-                    campos_perfil["currency"] = ui.input(
-                        "Moneda", value=perfil["currency"]
-                    ).props("outlined dense").classes("w-28")
-                    campos_perfil["tour_type"] = ui.select(
-                        ["group", "private"], value=perfil["tour_type"], label="Tipo"
-                    ).props("outlined dense").classes("w-36")
-                    campos_perfil["status"] = ui.select(
-                        ["publish", "draft", "pending"], value=perfil["status"], label="Estado"
-                    ).props("outlined dense").classes("w-36")
-                    campos_perfil["availability_type"] = ui.select(
-                        ["daily", "fixed", "on_request"],
-                        value=perfil["availability_type"], label="Disponibilidad",
-                    ).props("outlined dense").classes("w-40")
+                    ui.number("Grupo mín.", value=perfil["group_min"], format="%d",
+                              on_change=lambda e: _fijar_entero("group_min", e.value)) \
+                        .props("outlined dense").classes("w-32")
+                    ui.number("Grupo máx.", value=perfil["group_max"], format="%d",
+                              on_change=lambda e: _fijar_entero("group_max", e.value)) \
+                        .props("outlined dense").classes("w-32")
+                    ui.input("Moneda", value=perfil["currency"],
+                             on_change=lambda e: _fijar("currency", e.value)) \
+                        .props("outlined dense").classes("w-28")
+                    ui.select(["group", "private"], value=perfil["tour_type"], label="Tipo",
+                              on_change=lambda e: _fijar("tour_type", e.value)) \
+                        .props("outlined dense").classes("w-36")
+                    ui.select(["publish", "draft", "pending"], value=perfil["status"],
+                              label="Estado",
+                              on_change=lambda e: _fijar("status", e.value)) \
+                        .props("outlined dense").classes("w-36")
+                    ui.select(["daily", "fixed", "on_request"],
+                              value=perfil["availability_type"], label="Disponibilidad",
+                              on_change=lambda e: _fijar("availability_type", e.value)) \
+                        .props("outlined dense").classes("w-40")
 
-                campos_idioma: dict[str, dict] = {}
                 for codigo in idiomas.codigos():
                     guardado = perfil["por_idioma"].get(codigo, {})
                     ui.label(idiomas.etiqueta(codigo)).classes("font-medium mt-3")
                     with ui.row().classes("w-full gap-3 flex-wrap"):
-                        campos_idioma[codigo] = {
-                            "start_point": ui.input(
-                                "Punto de inicio", value=guardado.get("start_point", "")
-                            ).props("outlined dense").classes("w-56"),
-                            "end_point": ui.input(
-                                "Punto final", value=guardado.get("end_point", "")
-                            ).props("outlined dense").classes("w-56"),
-                            "categories": ui.input(
-                                "Categorías (separadas por coma)",
-                                value=", ".join(guardado.get("categories", [])),
-                            ).props("outlined dense").classes("w-72"),
-                        }
+                        ui.input("Punto de inicio", value=guardado.get("start_point", ""),
+                                 on_change=lambda e, c=codigo:
+                                     _fijar_idioma(c, "start_point", e.value)) \
+                            .props("outlined dense").classes("w-56")
+                        ui.input("Punto final", value=guardado.get("end_point", ""),
+                                 on_change=lambda e, c=codigo:
+                                     _fijar_idioma(c, "end_point", e.value)) \
+                            .props("outlined dense").classes("w-56")
+                        ui.input("Categorías (separadas por coma)",
+                                 value=", ".join(guardado.get("categories", [])),
+                                 on_change=lambda e, c=codigo: _fijar_idioma(
+                                     c, "categories",
+                                     [x.strip() for x in (e.value or "").split(",") if x.strip()])) \
+                            .props("outlined dense").classes("w-72")
 
         # ---- Resultado ------------------------------------------------------ #
         tarjeta_resultado = ui.card().classes("w-full tarjeta-resultado")
@@ -210,26 +232,13 @@ def index():
     # ----------------------------------------------------------------------- #
 
     def recoger_perfil() -> dict:
-        """Lee la pantalla y devuelve el perfil, guardandolo para la proxima vez."""
-        nuevo = dict(perfil)
-        nuevo["id_inicial"] = int(id_inicial.value or 2000)
-        for clave, campo in campos_perfil.items():
-            valor = campo.value
-            nuevo[clave] = int(valor) if clave.startswith("group_") and valor else valor
-        nuevo["por_idioma"] = {
-            codigo: {
-                "start_point": campos["start_point"].value or "",
-                "end_point": campos["end_point"].value or "",
-                "categories": [c.strip() for c in (campos["categories"].value or "").split(",")
-                               if c.strip()],
-            }
-            for codigo, campos in campos_idioma.items()
-        }
+        """Devuelve el perfil vigente y lo guarda para la proxima vez."""
+        ajustes["id_inicial"] = int(id_inicial.value or 2000)
         try:
-            modulo_perfil.guardar(nuevo)
+            modulo_perfil.guardar(ajustes)
         except OSError:
             pass  # no poder persistir el perfil no debe impedir convertir
-        return nuevo
+        return ajustes
 
     def convertir_ahora():
         if "base" not in subidos:

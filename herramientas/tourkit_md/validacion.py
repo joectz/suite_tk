@@ -92,8 +92,20 @@ def _revisar_tour(campos: dict) -> list[Hallazgo]:
     if not campos.get("price_base"):
         hallazgos.append(Hallazgo(
             "aviso", nombre,
-            "No se encontro el precio. Comprueba que el documento diga "
-            "'PRECIO: <n> USD' / 'PRICE: <n> USD'.",
+            "Sin precio. Si el documento dice 'PRECIO: USD POR PERSONA' sin cifra "
+            "(paquetes cotizados a pedido) esto es correcto; si no, comprueba que "
+            "ponga 'PRECIO: <n> USD' / 'PRICE: <n> USD'.",
+        ))
+
+    # El titulo declara la duracion y el itinerario tiene otro numero de dias:
+    # normalmente significa que un encabezado de dia no se reconocio.
+    declarados = campos.get("duration_days")
+    contados = len(campos.get("itinerary", []))
+    if declarados and contados and str(declarados) != str(contados):
+        hallazgos.append(Hallazgo(
+            "aviso", nombre,
+            f"El titulo declara {declarados} dias pero el itinerario trae {contados}. "
+            f"Revisa si falta algun encabezado de dia.",
         ))
     if not campos.get("itinerary"):
         hallazgos.append(Hallazgo("error", nombre, "El tour se quedo sin itinerario."))

@@ -88,17 +88,31 @@ def slug(texto: str, maximo: int = 90) -> str:
 # despues de un signo de apertura. Se juntan los dos idiomas: ninguna de estas
 # palabras es un nombre propio en el otro, asi que mezclarlas no hace dano.
 MENORES = {
+    # Espanol
     "de", "del", "la", "las", "el", "los", "y", "e", "o", "u", "en", "con",
-    "por", "para", "a", "al", "an", "the", "and", "or", "of", "in", "on",
-    "at", "to", "for", "with", "by",
+    "por", "para", "a", "al", "desde", "hasta", "sobre", "entre", "tras", "sin",
+    # Ingles
+    "an", "the", "and", "or", "of", "in", "on", "at", "to", "for", "with",
+    "by", "from", "into", "over", "under", "via", "per", "as", "but", "nor",
 }
 
 # Nombres propios y siglas que deben conservar su forma exacta al destitular.
-EXCEPCIONES_TITULO = {"peru": "Perú", "unesco": "UNESCO", "usd": "USD", "pen": "PEN"}
+EXCEPCIONES_TITULO = {
+    "peru": "Perú", "unesco": "UNESCO", "usd": "USD", "pen": "PEN",
+    "vip": "VIP", "atv": "ATV", "suv": "SUV", "4x4": "4x4",
+}
 
 
 def _capitalizar(palabra: str) -> str:
-    """Pone en mayuscula la primera LETRA, respetando "(uros" o "«taquile"."""
+    """
+    Pone en mayuscula la primera LETRA, respetando "(uros" o "«taquile".
+
+    Una palabra que lleva digitos se deja entera en mayusculas: son codigos de
+    duracion como "2D/1N" o "12D/11N", y capitalizar solo la primera letra los
+    dejaria en "12D/11n".
+    """
+    if any(c.isdigit() for c in palabra):
+        return palabra.upper()
     for indice, caracter in enumerate(palabra):
         if caracter.isalpha():
             return palabra[:indice] + caracter.upper() + palabra[indice + 1:].lower()
@@ -169,6 +183,16 @@ def recortar(texto: str, maximo: int) -> str:
     if corte > maximo * 0.5:
         return ventana[: corte + 1].strip()
     return ventana.rsplit(" ", 1)[0].rstrip(" ,;:-") + "..."
+
+
+def texto_o_vacio(valor) -> str:
+    """
+    str() de un valor de perfil, pero None se convierte en "" y no en "None".
+
+    Sin esto, un ajuste sin rellenar acababa emitido como group_min: "None",
+    que WordPress importaria como texto literal.
+    """
+    return "" if valor is None else str(valor)
 
 
 def html_parrafos(parrafos: list[str]) -> str:
@@ -296,11 +320,17 @@ def segmentar(lineas: list[Linea], codigo_idioma: str) -> list[TourCrudo]:
             continue
 
         # --- encabezado de dia --------------------------------------------- #
-        # Se comprueba tambien dentro de "estadisticas" porque el bloque de
-        # estadisticas de un dia va justo antes del encabezado del siguiente:
-        # si solo mirasemos en "itinerario", DIA 02 nunca se detectaria y sus
-        # estadisticas pisarian las del DIA 01.
-        if seccion in {"itinerario", "estadisticas"} and not linea.vineta:
+        # Se comprueba desde CUALQUIER seccion menos las FAQ, no solo desde el
+        # itinerario. Dos motivos, los dos vistos en documentos reales:
+        #   - el bloque de estadisticas de un dia va justo antes del encabezado
+        #     del siguiente, asi que DIA 02 llega estando en "estadisticas";
+        #   - los paquetes de varios dias llevan un "Inclusiones:" DENTRO de
+        #     cada dia, asi que el dia siguiente llega estando en "incluye". Sin
+        #     esto, el primer "Inclusiones:" de un paquete se tragaba el resto
+        #     del tour entero (200+ items) y el itinerario se quedaba en 2 dias.
+        # Se excluyen las FAQ porque ahi el texto es libre y una respuesta
+        # podria empezar por algo parecido a un encabezado de dia.
+        if seccion != "faq" and not linea.vineta:
             encabezado_dia = tabla["re_dia"].match(texto)
             if encabezado_dia:
                 cerrar_parrafo()
@@ -434,6 +464,39 @@ def _requerido(texto: str, palabras: list[str]) -> int:
     return int(any(sin_tildes(p).lower() in plano for p in palabras))
 
 
+def _sin_repetir(items: list[str]) -> list[str]:
+    """
+    Quita duplicados conservando el orden de aparicion.
+
+    Importa en los paquetes de varios dias, donde cada dia repite su propio
+    "Inclusiones:" con las mismas lineas de siempre (recojo, transporte, guia
+    profesional...). Al juntarlas todas en la lista del tour salen decenas de
+    entradas identicas. En un tour normal no hay repetidos y no cambia nada.
+    """
+    salida: list[str] = []
+    vistos: set[str] = set()
+    for item in items:
+        clave = sin_tildes(item).lower().strip(" .;,")
+        if clave and clave not in vistos:
+            vistos.add(clave)
+            salida.append(item)
+    return salida
+
+
+def _duracion_del_titulo(titulo: str) -> tuple[str, str] | None:
+    """
+    Lee "12D/11N" o "2D/1N" del titulo y devuelve (dias, noches).
+
+    Los paquetes anuncian su duracion en el propio titulo, y es mas fiable que
+    contar encabezados de dia: si uno se pierde en la extraccion, el titulo
+    sigue diciendo la verdad.
+    """
+    encontrado = re.search(r"\b(\d{1,2})\s*D\s*/\s*(\d{1,2})\s*N\b", titulo, re.I)
+    if encontrado:
+        return encontrado.group(1), encontrado.group(2)
+    return None
+
+
 def _dificultad(tour: TourCrudo, tabla: dict) -> str:
     for dia in tour.dias:
         bruta = dia.stats.get("dificultad", "")
@@ -472,7 +535,7 @@ def a_campos(tour: TourCrudo, perfil: dict) -> dict:
         })
 
     llevar = []
-    for bruto in tour.llevar:
+    for bruto in _sin_repetir(tour.llevar):
         titulo_item, descripcion_item = _partir_llevar(bruto, tabla)
         llevar.append({
             "icon": "fa:user",
@@ -482,6 +545,12 @@ def a_campos(tour: TourCrudo, perfil: dict) -> dict:
         })
 
     resumen = recortar(tour.overview[0], 240) if tour.overview else ""
+
+    # El titulo manda sobre el conteo de dias cuando declara la duracion
+    # ("PAQUETE LIMA - CUSCO 8D/7N"): es un dato explicito del documento, no
+    # una deduccion. validacion.py avisa si ambos no coinciden.
+    declarada = _duracion_del_titulo(tour.titulo)
+    dias_txt, noches_txt = declarada or (str(len(dias)), str(max(0, len(dias) - 1)))
 
     return {
         # Identidad. `id` y `sku` los completa emparejado.py, que es quien sabe
@@ -502,20 +571,20 @@ def a_campos(tour: TourCrudo, perfil: dict) -> dict:
         "subtitle": "",
         "sku": "",
         "tour_type": perfil.get("tour_type", "group"),
-        "duration_days": str(len(dias)),
-        "duration_nights": str(max(0, len(dias) - 1)),
+        "duration_days": dias_txt,
+        "duration_nights": noches_txt,
         "duration_hours": "",
         "difficulty": _dificultad(tour, tabla),
         "guide_languages": [tour.idioma],
-        "group_min": str(perfil.get("group_min", "")),
-        "group_max": str(perfil.get("group_max", "")),
+        "group_min": texto_o_vacio(perfil.get("group_min", "")),
+        "group_max": texto_o_vacio(perfil.get("group_max", "")),
         "age_min": "",
         "start_point": por_idioma.get("start_point", ""),
         "end_point": por_idioma.get("end_point", ""),
         "short_description": resumen,
         "highlights": [],
-        "includes": [{"icon": "", "title": t + "."} for t in tour.incluye],
-        "excludes": [{"icon": "", "title": t + "."} for t in tour.excluye],
+        "includes": [{"icon": "", "title": t + "."} for t in _sin_repetir(tour.incluye)],
+        "excludes": [{"icon": "", "title": t + "."} for t in _sin_repetir(tour.excluye)],
         "important_notes": "",
         "itinerary": itinerario,
         "what_to_bring": llevar,
@@ -524,8 +593,8 @@ def a_campos(tour: TourCrudo, perfil: dict) -> dict:
         "currency": tour.moneda or perfil.get("currency", "USD"),
         "price_child": "",
         "child_age_max": perfil.get("child_age_max", 11),
-        "deposit_percent": str(perfil.get("deposit_percent", "0")),
-        "tax_included": str(perfil.get("tax_included", "1")),
+        "deposit_percent": texto_o_vacio(perfil.get("deposit_percent", "0")),
+        "tax_included": texto_o_vacio(perfil.get("tax_included", "1")),
         "season_prices": [],
         "group_prices": [],
         "accepted_gateways": [],

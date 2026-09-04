@@ -34,11 +34,17 @@ def limpiar(texto: str) -> str:
 
 
 def normalizar(texto: str) -> str:
-    """Forma canonica para COMPARAR encabezados: mayusculas, sin tildes, sin ':' final."""
+    """
+    Forma canonica para COMPARAR encabezados: mayusculas, sin tildes y sin la
+    puntuacion de los extremos.
+
+    Los signos de interrogacion se quitan porque los documentos alternan
+    "QUE LLEVAR" con "¿QUE LLEVAR?" para el mismo encabezado.
+    """
     texto = limpiar(texto)
     descompuesto = unicodedata.normalize("NFKD", texto)
     sin_tildes = "".join(c for c in descompuesto if not unicodedata.combining(c))
-    return sin_tildes.upper().strip(" :.-–—").strip()
+    return sin_tildes.upper().strip(" :.-–—¿?¡!").strip()
 
 
 # --------------------------------------------------------------------------- #
@@ -56,10 +62,12 @@ IDIOMAS: dict[str, dict] = {
         "etiqueta": "Espanol",
         "secciones": {
             "overview": ["OVERVIEW", "RESUMEN", "DESCRIPCION", "INTRODUCCION", "EL TOUR"],
-            "itinerario": ["ITINERARIO", "PROGRAMA", "RECORRIDO"],
+            "itinerario": ["ITINERARIO", "PROGRAMA"],
             "estadisticas": [
-                "ESTADISTICAS DEL DIA", "ESTADISTICAS", "DATOS DEL DIA",
-                "FICHA TECNICA", "ESTADISTICAS DEL RECORRIDO",
+                "ESTADISTICAS DEL DIA", "ESTADISTICAS DIA", "ESTADISTICAS",
+                "ESTADISTICAS DEL TOUR", "ESTADISTICAS DE LA RUTA",
+                "ESTADISTICAS DE LA CAMINATA", "ESTADISTICAS DEL RECORRIDO",
+                "DATOS DEL DIA", "FICHA TECNICA",
             ],
             "incluye": ["INCLUSIONES", "INCLUYE", "EL SERVICIO INCLUYE", "QUE INCLUYE"],
             "excluye": ["EXCLUSIONES", "NO INCLUYE", "EL SERVICIO NO INCLUYE", "QUE NO INCLUYE"],
@@ -98,13 +106,18 @@ IDIOMAS: dict[str, dict] = {
         "etiqueta": "Ingles",
         "secciones": {
             "overview": ["OVERVIEW", "SUMMARY", "DESCRIPTION", "INTRODUCTION", "THE TOUR"],
-            "itinerario": ["ITINERARY", "PROGRAM", "PROGRAMME", "ROUTE"],
+            "itinerario": ["ITINERARY", "PROGRAM", "PROGRAMME"],
             "estadisticas": [
                 "STATISTICS", "STATISTICS DAY", "DAY STATISTICS",
+                "TOUR STATISTICS", "STATISTICS OF THE TOUR",
+                "ROUTE STATISTICS", "STATISTICS OF THE ROUTE",
                 "TRIP STATISTICS", "QUICK FACTS",
             ],
             "incluye": ["INCLUSIONS", "INCLUDES", "WHAT IS INCLUDED", "THE SERVICE INCLUDES"],
-            "excluye": ["EXCLUSIONS", "EXCLUDES", "NOT INCLUDED", "WHAT IS NOT INCLUDED"],
+            "excluye": [
+                "EXCLUSIONS", "EXCLUDES", "DOES NOT INCLUDE", "NOT INCLUDED",
+                "WHAT IS NOT INCLUDED",
+            ],
             "llevar": ["WHAT TO BRING", "WHAT TO PACK", "RECOMMENDATIONS"],
             "faq": ["FREQUENTLY ASKED QUESTIONS", "FAQ", "FAQS", "QUESTIONS"],
         },
@@ -149,6 +162,29 @@ def etiqueta(codigo: str) -> str:
     return IDIOMAS[codigo]["etiqueta"]
 
 
+def parece_encabezado(linea: str) -> bool:
+    """
+    True si la linea TIENE FORMA de encabezado, mirando solo su aspecto.
+
+    Hace falta porque los parrafos vienen cortados a lo ancho de la pagina y la
+    ultima linea de uno puede coincidir por accidente con el nombre de una
+    seccion: "...local handicrafts during stops on this / route." deja una
+    linea suelta "route." que, sin este filtro, se tomaba por el encabezado
+    ITINERARY y reseteaba el itinerario a mitad del tour.
+
+    Un encabezado de verdad en estos documentos va TODO EN MAYUSCULAS
+    ("INCLUSIONES", "¿QUÉ LLEVAR?") o termina en dos puntos ("Inclusiones:").
+    Una cola de parrafo en minusculas no cumple ninguna de las dos.
+    """
+    linea = limpiar(linea)
+    if linea.endswith(":"):
+        return True
+    letras = [c for c in linea if c.isalpha()]
+    if not letras:
+        return False
+    return sum(c.isupper() for c in letras) / len(letras) > 0.85
+
+
 def seccion_de(codigo_idioma: str, linea: str) -> str | None:
     """
     Devuelve la clave interna de seccion si `linea` es su encabezado, o None.
@@ -156,6 +192,8 @@ def seccion_de(codigo_idioma: str, linea: str) -> str | None:
     Se acepta el encabezado con cola numerica ("STATISTICS DAY 01") porque
     varios documentos numeran el encabezado de estadisticas por dia.
     """
+    if not parece_encabezado(linea):
+        return None
     objetivo = normalizar(linea)
     if not objetivo or len(objetivo) > 60:
         return None
