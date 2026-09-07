@@ -228,6 +228,11 @@ def segmentar(lineas: list[Linea], codigo_idioma: str) -> list[TourCrudo]:
     bloque_buffer = -1
     bloque_keywords = -1
     pregunta: str | None = None
+    # Si la seccion de lista en curso ha traido algun marcador de vineta.
+    # Cuando la extraccion los pierde por completo no se puede distinguir
+    # una continuacion de un item nuevo, y entonces cada linea vale por un
+    # item (es preferible a fusionarlo todo en uno solo).
+    vineta_en_seccion = False
 
     def cerrar_parrafo() -> None:
         nonlocal pregunta
@@ -268,6 +273,7 @@ def segmentar(lineas: list[Linea], codigo_idioma: str) -> list[TourCrudo]:
             tour.titulo = idiomas.limpiar(encabezado_tour.group(2))
             tours.append(tour)
             seccion, dia, pregunta = "", None, None
+            vineta_en_seccion = False
             bloque_buffer = linea.bloque
             continue
 
@@ -286,6 +292,7 @@ def segmentar(lineas: list[Linea], codigo_idioma: str) -> list[TourCrudo]:
             cerrar_parrafo()
             # "ESTADISTICAS" cuelga del dia en curso, no reinicia el itinerario.
             seccion = nueva
+            vineta_en_seccion = False
             if nueva not in {"estadisticas"}:
                 pregunta = None
             if nueva == "itinerario":
@@ -362,7 +369,16 @@ def segmentar(lineas: list[Linea], codigo_idioma: str) -> list[TourCrudo]:
 
         elif seccion in {"incluye", "excluye", "llevar"}:
             cerrar_parrafo()
-            getattr(tour, seccion).append(texto.rstrip(" .;"))
+            lista = getattr(tour, seccion)
+            # Un item de lista cuyo texto no cabe en el ancho de la pagina sigue
+            # en la linea siguiente, y esa continuacion NO lleva marcador de
+            # vineta. Sin esto, "...hotel in Cusco or a / point." se convertia
+            # en dos items, el segundo con la palabra suelta "point".
+            if lista and vineta_en_seccion and not linea.vineta:
+                lista[-1] = (lista[-1] + " " + texto).rstrip(" .;")
+            else:
+                lista.append(texto.rstrip(" .;"))
+                vineta_en_seccion = vineta_en_seccion or linea.vineta
             bloque_buffer = linea.bloque
             continue
 
