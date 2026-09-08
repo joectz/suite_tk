@@ -15,29 +15,34 @@ from __future__ import annotations
 
 from . import base
 from .mapeador_urls import motor as _mapeador_motor
-from .mapeador_urls import pagina as _mapeador_pagina  # noqa: F401  (el import registra la @ui.page)
-from .descargador_multimedia import motor as _descargador_motor
-from .descargador_multimedia import pagina as _descargador_pagina  # noqa: F401
-from .sitemap import motor as _sitemap_motor
-from .sitemap import pagina as _sitemap_pagina  # noqa: F401
-from .color_tools import motor as _color_motor
-from .color_tools import pagina as _color_pagina  # noqa: F401
+from .mapeador_urls import (
+    pagina as _mapeador_pagina,
+)  # noqa: F401  (el import registra la @ui.page)
 
 REGISTRO: list[base.Herramienta] = [
     base.Herramienta(
         id=_mapeador_pagina.ID_HERRAMIENTA,
         nombre="Mapeador de URLs",
         descripcion="Rastrea un sitio y lista todas sus páginas, "
-                    "siguiendo enlaces internos y el sitemap.xml",
+        "siguiendo enlaces internos y el sitemap.xml",
         icono="travel_explore",
         ruta=_mapeador_pagina.RUTA,
         worker_main=_mapeador_motor.main,
+    ),
+    # Sin worker: leer un PDF cuesta milisegundos, no hace falta subproceso.
+    base.Herramienta(
+        id=_tourkit_pagina.ID_HERRAMIENTA,
+        nombre="Tours a Markdown",
+        descripcion="Convierte PDF o DOCX de tours al formato de importación "
+        "de TourKit, enlazando cada tour con su traducción",
+        icono="translate",
+        ruta=_tourkit_pagina.RUTA,
     ),
     base.Herramienta(
         id=_descargador_pagina.ID_HERRAMIENTA,
         nombre="Descargador Multimedia",
         descripcion="Extrae y descarga imágenes, videos, audio y recursos "
-                    "multimedia de páginas web.",
+        "multimedia de páginas web.",
         icono="download",
         ruta=_descargador_pagina.RUTA,
         worker_main=_descargador_motor.main,
@@ -46,7 +51,7 @@ REGISTRO: list[base.Herramienta] = [
         id=_sitemap_pagina.ID_HERRAMIENTA,
         nombre="Generador de Sitemap",
         descripcion="Genera un sitemap.xml SEO-ready a partir de "
-                    "sitios mapeados previamente",
+        "sitios mapeados previamente",
         icono="map",
         ruta=_sitemap_pagina.RUTA,
         worker_main=_sitemap_motor.main,
@@ -55,7 +60,7 @@ REGISTRO: list[base.Herramienta] = [
         id=_color_pagina.ID_HERRAMIENTA,
         nombre="Color Tools",
         descripcion="Extractor de temas desde scraping, escalas multiformato "
-                    "y armonías de color.",
+        "y armonías de color.",
         icono="palette",
         ruta=_color_pagina.RUTA,
         worker_main=_color_motor.main,
